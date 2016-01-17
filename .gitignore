@@ -1,3 +1,4 @@
 *.gmt*
 *.pyc
 output/map_creator/computed_output/
+.DS_Store
