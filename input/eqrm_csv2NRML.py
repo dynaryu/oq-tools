@@ -21,84 +21,131 @@ import sys
 import argparse
 from lxml import etree
 from csv import DictReader
+import pandas as pd
 
-NRML_NS = 'http://openquake.org/xmlns/nrml/0.3'
-GML_NS = 'http://www.opengis.net/gml'
+NRML_NS = 'http://openquake.org/xmlns/nrml/0.5'
+#GML_NS = 'http://www.opengis.net/gml'
 NRML = "{%s}" % NRML_NS
-GML = "{%s}" % GML_NS
-NSMAP = {None: NRML_NS, "gml": GML_NS}
+# GML = "{%s}" % GML_NS
+NSMAP = {None: NRML_NS}
 
 ROOT = "%snrml" % NRML
-GML_ID = "%sid" % GML
+# GML_ID = "%sid" % NRML
 EXPOSURE_MODEL = "%sexposureModel" % NRML
-CONFIG = "%sconfig" % NRML
-EXPOSURE_LIST = "%sexposureList" % NRML
+# CONFIG = "%sconfig" % NRML
+# EXPOSURE_LIST = "%sexposureList" % NRML
 
 # Exposure List attributes names
-AREA_TYPE = 'areaType'
-AREA_UNIT = 'areaUnit'
-ASSET_CATEGORY = 'assetCategory'
-COCO_TYPE = 'cocoType'
-COCO_UNIT = 'cocoUnit'
-RECO_TYPE = 'recoType'
-RECO_UNIT = 'recoUnit'
-STCO_TYPE = 'stcoType'
-STCO_UNIT = 'stcoUnit'
+#AREA_TYPE = 'areaType'
+#AREA_UNIT = 'areaUnit'
+#ASSET_CATEGORY = 'category'
+#COCO_TYPE = 'cocoType'
+#COCO_UNIT = 'cocoUnit'
+#RECO_TYPE = 'recoType'
+#RECO_UNIT = 'recoUnit'
+#STCO_TYPE = 'stcoType'
+#STCO_UNIT = 'stcoUnit'
 
-DESCRIPTION =  '%sdescription' % GML
+DESCRIPTION = '%sdescription' % NRML
 TAXONOMY_SOURCE = '%staxonomySource' % NRML
 
 # Asset definition tagnames
-ASSET = "%sassetDefinition" % NRML
-SITE = "%ssite" % NRML
-GML_POINT = "%sPoint" % GML
-GML_SRS_ATTR_NAME = 'srsName'
-GML_SRS_EPSG_4326 = 'epsg:4326'
-GML_POS = "%spos" % GML
-AREA = '%sarea' % NRML
-COCO = '%scoco' % NRML
-DEDUCTIBLE = '%sdeductible' % NRML
-LIMIT = '%slimit' % NRML
-NUMBER = '%snumber' % NRML
-OCCUPANTS = '%soccupants' % NRML
-RECO = '%sreco' % NRML
-STCO = '%sstco' % NRML
-TAXONOMY = '%staxonomy' % NRML
+ASSET = "%sasset" % NRML
+#SITE = "%ssite" % NRML
+#GML_POINT = "%sPoint" % NRML
+#GML_SRS_ATTR_NAME = 'srsName'
+#GML_SRS_EPSG_4326 = 'epsg:4326'
+#GML_POS = "%spos" % NRML
+#AREA = '%sarea' % NRML
+#COCO = '%scoco' % NRML
+#DEDUCTIBLE = '%sdeductible' % NRML
+#LIMIT = '%slimit' % NRML
+#NUMBER = '%snumber' % NRML
+OCCUPANTS = '%soccupancies' % NRML
+#RECO = '%sreco' % NRML
+#STCO = '%sstco' % NRML
+#TAXONOMY = '%staxonomy' % NRML
 
 NO_VALUE = ''
 
+BLDG_MAPPING = pd.read_csv(
+    '/Users/hyeuk/Projects/scenario_Guildford/input/bldg_class_mapping.csv')
+BLDG_MAPPING.set_index('NEXIS_CONS', inplace=True)
+BLDG_MAPPING = BLDG_MAPPING['MAPPING2'].to_dict()
+
+
+def convert_to_float(string):
+    val = string.split('-')[-1]
+    try:
+        float(val)
+        return float(val)
+    except ValueError:
+        return None
+
+
+def map_vul_class(ga_class, year_built, BLDG_MAPPING):
+
+    year = convert_to_float(year_built)
+
+    if BLDG_MAPPING[ga_class][:2] in ['UR', 'W1', 'W2']:
+
+        if year <= 1946:
+            tail = 'Pre1945'
+        else:
+            tail = 'Post1945'
+
+    else:
+        if year <= 1996:
+            tail = 'Pre1996'
+        else:
+            tail = 'Post1996'
+
+    return '{}_{}'.format(ga_class, tail)
+
+
 class ExposureTxtReader(object):
 
-    ASSETS_FIELDNAMES = ['lon', 'lat', 'taxonomy', 'stco', 'number' ,'area',
-                         'reco', 'coco', 'occupantDay', 'occupantNight',
-                         'deductible', 'limit']
+    # ASSETS_FIELDNAMES = ['lon', 'lat', 'taxonomy', 'stco', 'number' ,'area',
+    #                      'reco', 'coco', 'occupantDay', 'occupantNight',
+    #                      'deductible', 'limit']
 
-    def __init__(self, txtfile):
+    EQRM_FIELDNAMES = [
+        'LID', 'LATITUDE', 'LONGITUDE', 'GCC_CODE', 'SA1_CODE', 'LGA_CODE',
+        'LGA_NAME', 'SUBURB', 'POSTCODE', 'HAZUS_STRUCTURE_CLASSIFICATION',
+        'GA_STRUCTURE_CLASSIFICATION', 'STRUCTURE_CATEGORY', 'HAZUS_USAGE',
+        'FCB_USAGE', 'SITE_CLASS', 'YEAR_BUILT', 'CONTENTS_COST_DENSITY',
+        'BUILDING_COST_DENSITY', 'FLOOR_AREA', 'POPULATION', 'SURVEY_FACTOR']
+
+    def __init__(self, metadata_file, txtfile):
         self.txtfile = txtfile
+        self.metadata_file = metadata_file
 
-    def _move_to_beginning_file(self):
+    def _move_to_beginning_file_input(self):
         self.txtfile.seek(0)
 
+    def _move_to_beginning_file_meta(self):
+        self.metadata_file.seek(0)
+
     def _move_to_assets_definitions(self):
-        self._move_to_beginning_file()
+        self._move_to_beginning_file_input()
         while True:
             line = set([field.strip() for field in (
                 self.txtfile.readline()).split(',')])
-            if set(self.ASSETS_FIELDNAMES).issubset(line):
+            if set(self.EQRM_FIELDNAMES).issubset(line):
                 break;
 
     @property
     def metadata(self):
-        self._move_to_beginning_file()
+        self._move_to_beginning_file_meta()
         fieldnames = [field.strip() for field in (
-            self.txtfile.readline()).split(',')]
+            self.metadata_file.readline()).split(',')]
         fieldvalues = [value.strip() for value in (
-            self.txtfile.readline()).split(',')]
+            self.metadata_file.readline()).split(',')]
         return dict(zip(fieldnames, fieldvalues))
 
     def readassets(self):
         self._move_to_assets_definitions()
-        reader = DictReader(self.txtfile, fieldnames=self.ASSETS_FIELDNAMES)
+        reader = DictReader(self.txtfile, fieldnames=self.EQRM_FIELDNAMES)
         return [asset for asset in reader]
 
 
@@ -111,129 +158,99 @@ class ExposureWriter(object):
         with open(filename, 'w') as output_file:
             tree.write(output_file, xml_declaration=True,
                 encoding='utf-8', pretty_print=True)
+        # to_csv
+        _df = pd.DataFrame(assets)
+        _df.set_index('LID', inplace=True)
+        _df[['SA1_CODE', 'SUBURB', 'REPL_COST', 'POPULATION']].to_csv('{}.csv'.format(filename))
 
     def _value_defined_for(self, dict, attrib):
         return dict[attrib] != NO_VALUE
 
     def _write_header(self, metadata):
         root_elem = etree.Element(ROOT, nsmap=NSMAP)
-        root_elem.attrib[GML_ID] = 'n1'
-        exp_mod_elem = etree.SubElement(
-            root_elem, EXPOSURE_MODEL)
-        exp_mod_elem.attrib[GML_ID] = 'ep1'
-        config = etree.SubElement(
-            exp_mod_elem, CONFIG)
-        exp_list_elem = etree.SubElement(
-            exp_mod_elem, EXPOSURE_LIST)
-        exp_list_elem.attrib[GML_ID] = metadata['expModId']
-
-        if self._value_defined_for(metadata, 'assetCategory'):
-            exp_list_elem.attrib[ASSET_CATEGORY] = metadata['assetCategory']
+        exp_mod_elem = etree.SubElement(root_elem, EXPOSURE_MODEL)
+        exp_mod_elem.attrib['id'] = metadata['expModId']
+        if self._value_defined_for(metadata, 'category'):
+            exp_mod_elem.attrib['category'] = metadata['category']
         else:
             raise RuntimeError('assetCategory is a compulsory value')
-
-        if self._value_defined_for(metadata, 'areaType'):
-            exp_list_elem.attrib[AREA_TYPE] = metadata['areaType']
-        if self._value_defined_for(metadata, 'areaUnit'):
-            exp_list_elem.attrib[AREA_UNIT] = metadata['areaUnit']
-        if self._value_defined_for(metadata, 'cocoType'):
-            exp_list_elem.attrib[COCO_TYPE] = metadata['cocoType']
-        if self._value_defined_for(metadata, 'cocoUnit'):
-            exp_list_elem.attrib[COCO_UNIT] = metadata['cocoUnit']
-        if self._value_defined_for(metadata, 'recoType'):
-            exp_list_elem.attrib[RECO_TYPE] = metadata['recoType']
-        if self._value_defined_for(metadata, 'recoUnit'):
-            exp_list_elem.attrib[RECO_UNIT] = metadata['recoUnit']
-        if self._value_defined_for(metadata, 'stcoType'):
-            exp_list_elem.attrib[STCO_TYPE] = metadata['stcoType']
-        if self._value_defined_for(metadata, 'stcoUnit'):
-            exp_list_elem.attrib[STCO_UNIT] = metadata['stcoUnit']
-        if self._value_defined_for(metadata, 'description'):
-            description = etree.SubElement(
-                exp_list_elem, DESCRIPTION)
-            description.text = metadata['description']
         if self._value_defined_for(metadata, 'taxonomySource'):
-            taxonomy_source = etree.SubElement(
-                exp_list_elem, TAXONOMY_SOURCE)
-            taxonomy_source.text = metadata['taxonomySource']
+            exp_mod_elem.attrib['taxonomySource'] = metadata['taxonomySource']
+
+        if self._value_defined_for(metadata, 'description'):
+            desc_elem = etree.SubElement(exp_mod_elem, 'description')
+            desc_elem.text = metadata['description']
+
+        conv_elem = etree.SubElement(exp_mod_elem, 'conversions')
+
+        cost_elem = etree.SubElement(conv_elem, 'costTypes')
+        stco_elem = etree.SubElement(cost_elem, 'costType')
+        stco_elem.attrib['name'] = 'structural'
+        stco_elem.attrib['type'] = metadata['stcoType']
+        stco_elem.attrib['unit'] = metadata['stcoUnit']
+
+        # if self._value_defined_for(metadata, 'cocoType'):
+        #     coco_elem = etree.SubElement(cost_elem, 'costType')
+        #     coco_elem.attrib['name'] = 'contents'
+        #     coco_elem.attrib['type'] = metadata['cocoType']
+        #     coco_elem.attrib['unit'] = metadata['cocoUnit']
+
+        # if self._value_defined_for(metadata, 'stcoUnit'):
+        # if self._value_defined_for(metadata, 'cocoType'):
+        #     cost_elem.attrib[COCO_TYPE] = metadata['cocoType']
+        # if self._value_defined_for(metadata, 'cocoUnit'):
+        #     cost_elem.attrib[COCO_UNIT] = metadata['cocoUnit']
+        # if self._value_defined_for(metadata, 'recoType'):
+        #     cost_elem.attrib[RECO_TYPE] = metadata['recoType']
+        # if self._value_defined_for(metadata, 'recoUnit'):
+        #     cost_elem.attrib[RECO_UNIT] = metadata['recoUnit']
+
+        area_elem = etree.SubElement(conv_elem, 'area')
+        area_elem.attrib['type'] = metadata['areaType']
+        area_elem.attrib['unit'] = metadata['areaUnit']
+
         return root_elem
 
     def _write_assets(self, root_elem, assets):
-        exp_list = root_elem.find('.//%s' % EXPOSURE_LIST)
-        for i, asset in enumerate(assets, start=1):
-            asset_elem = etree.SubElement(
-                exp_list, ASSET)
-            asset_elem.attrib[GML_ID] = 'asset_%s' % i
+        exp_mod_elem = root_elem.find('.//%s' % EXPOSURE_MODEL)
+        exp_list = etree.SubElement(exp_mod_elem, 'assets')
+        for asset in assets:
+            asset_elem = etree.SubElement(exp_list, ASSET)
+            asset_elem.attrib['id'] = asset['LID']
+            asset_elem.attrib['taxonomy'] = map_vul_class(
+                asset['GA_STRUCTURE_CLASSIFICATION'],
+                asset['YEAR_BUILT'], BLDG_MAPPING)
+            # asset['TAXONOMY'] = asset_elem.attrib['taxonomy']
+            asset_elem.attrib['area'] = asset['FLOOR_AREA']
+            asset_elem.attrib['number'] = '1'
 
-            if (self._value_defined_for(asset, 'lon') and
-                self._value_defined_for(asset, 'lat')):
+            if (self._value_defined_for(asset, 'LONGITUDE') and
+                self._value_defined_for(asset, 'LATITUDE')):
 
                 site_elem = etree.SubElement(
-                    asset_elem, SITE)
-                point_elem = etree.SubElement(
-                    site_elem, GML_POINT)
-                point_elem.attrib[GML_SRS_ATTR_NAME] = GML_SRS_EPSG_4326
-                pos_elem = etree.SubElement(
-                    point_elem, GML_POS)
-                pos_elem.text = " ".join([asset['lon'], asset['lat']])
+                    asset_elem, 'location')
+                site_elem.attrib['lon'] = asset['LONGITUDE']
+                site_elem.attrib['lat'] = asset['LATITUDE']
             else:
                 raise RuntimeError('lon and lat are compulsory values for an '
                                    'asset')
 
-            if self._value_defined_for(asset, 'area'):
-                area_elem = etree.SubElement(
-                    asset_elem, AREA)
-                area_elem.text = asset['area']
+            cost_elem = etree.SubElement(asset_elem, 'costs')
+            if self._value_defined_for(asset, 'BUILDING_COST_DENSITY'):
+                stco_elem = etree.SubElement(cost_elem, 'cost')
+                stco_elem.attrib['type'] = 'structural'
+                repl_cost = (float(asset['BUILDING_COST_DENSITY']) +
+                             float(asset['CONTENTS_COST_DENSITY']))
+                stco_elem.attrib['value'] = '{}'.format(repl_cost)
+                asset['REPL_COST'] = repl_cost * float(asset['FLOOR_AREA'])
 
-            if self._value_defined_for(asset, 'coco'):
-                coco_elem = etree.SubElement(
-                    asset_elem, COCO)
-                coco_elem.text = asset['coco']
-
-            if self._value_defined_for(asset, 'deductible'):
-                deduct_elem = etree.SubElement(
-                    asset_elem, DEDUCTIBLE)
-                deduct_elem.text = asset['deductible']
-
-            if self._value_defined_for(asset, 'limit'):
-                limit_elem = etree.SubElement(
-                    asset_elem, LIMIT)
-                limit_elem.text = asset['limit']
-
-            if self._value_defined_for(asset, 'number'):
-                number_elem = etree.SubElement(
-                    asset_elem, NUMBER)
-                number_elem.text = asset['number']
-
-            if self._value_defined_for(asset, 'occupantDay'):
+            if self._value_defined_for(asset, 'POPULATION'):
                 occupants_elem = etree.SubElement(
                     asset_elem, OCCUPANTS)
-                occupants_elem.text = asset['occupantDay']
-                occupants_elem.attrib['description'] = 'day'
-
-            if self._value_defined_for(asset, 'occupantNight'):
-                occupants_elem = etree.SubElement(
-                    asset_elem, OCCUPANTS)
-                occupants_elem.text = asset['occupantNight']
-                occupants_elem.attrib['description'] = 'night'
-
-            if self._value_defined_for(asset, 'reco'):
-                reco_elem = etree.SubElement(
-                    asset_elem, RECO)
-                reco_elem.text = asset['reco']
-
-            if self._value_defined_for(asset, 'stco'):
-                stco_elem = etree.SubElement(
-                    asset_elem, STCO)
-                stco_elem.text = asset['stco']
-
-            if self._value_defined_for(asset, 'taxonomy'):
-                taxonomy_elem = etree.SubElement(
-                    asset_elem, TAXONOMY)
-                taxonomy_elem.text = asset['taxonomy']
-            else:
-                raise RuntimeError('taxonomy is a compulsory value for '
-                                   'an asset')
+                occupants_night_elem = etree.SubElement(
+                    occupants_elem, 'occupancy')
+                occupants_night_elem.attrib['occupants'] = asset['POPULATION']
+                occupants_night_elem.attrib['period'] = 'night'
 
         return root_elem
 
@@ -241,6 +258,12 @@ class ExposureWriter(object):
 def cmd_parser():
 
     parser = argparse.ArgumentParser(prog='exposureTxt2NRML')
+
+    parser.add_argument('-m', '--metadata-file',
+        nargs=1,
+        metavar='metadata file',
+        dest='metadata_file',
+        help='metadata file corresponding to the input file')
 
     parser.add_argument('-i', '--input-file',
         nargs=1,
@@ -268,10 +291,12 @@ def main():
         parser.print_help()
     else:
         args = parser.parse_args()
-        with open(args.input_file[0]) as input_file:
-            reader = ExposureTxtReader(input_file)
+        with open(args.metadata_file[0]) as metadata_file, \
+                open(args.input_file[0]) as input_file:
+            reader = ExposureTxtReader(metadata_file, input_file)
             metadata = reader.metadata
             assets = reader.readassets()
+
         writer = ExposureWriter()
         writer.serialize(args.output_file[0], metadata, assets)
 

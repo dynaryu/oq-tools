@@ -1,5 +1,5 @@
-<?xml version='1.0' encoding='utf-8'?>
-<nrml xmlns:gml="http://www.opengis.net/gml" xmlns="http://openquake.org/xmlns/nrml/0.3" gml:id="n1">
+<?xml version='1.0' encoding='UTF-8'?>
+<nrml xmlns:gml="http://www.opengis.net/gml" xmlns="http://openquake.org/xmlns/nrml/0.5" gml:id="n1">
   <exposureModel gml:id="ep1">
     <config/>
     <exposureList gml:id="PAV01" assetCategory="buildings" areaType="per_asset" areaUnit="GBP" cocoType="per_area" cocoUnit="CHF" recoType="aggregated" recoUnit="EUR" stcoType="aggregated" stcoUnit="USD">

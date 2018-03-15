@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<nrml xmlns="http://openquake.org/xmlns/nrml/0.5">
+  <exposureModel id="OQ_exposure" category="buildings" taxonomySource="NEXIS v9.0 HAZUS">
+    <description>OpenQuake Exposure Model</description>
+    <conversions>
+      <costTypes>
+        <costType name="structural" type="per_area" unit="AUD"/>
+      </costTypes>
+      <area type="aggregated" unit="SQM"/>
+    </conversions>
+    <assets>
+      <asset id="GNAF_GAWA_146963068" taxonomy="URMLDBTILE_Post1945" area="300.00">
+        <location lon="115.669844890" lat="-32.7820959400000"/>
+        <costs>
+          <cost type="structural" value="1868.4467"/>
+        </costs>
+        <occupancies>
+          <occupancy occupants="2.20576790" period="night"/>
+        </occupancies>
+      </asset>
+      <asset id="GNAF_GAWA_147152918" taxonomy="W1TIMBERMETAL_Post1945" area="300.00">
+        <location lon="115.698570000" lat="-32.7818799999999"/>
+        <costs>
+          <cost type="structural" value="1920.9167"/>
+        </costs>
+        <occupancies>
+          <occupancy occupants="2.20576790" period="night"/>
+        </occupancies>
+      </asset>
+    </assets>
+  </exposureModel>
+</nrml>

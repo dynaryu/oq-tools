@@ -1,0 +1,2 @@
+expModId,category,description,taxonomySource,stcoType,stcoUnit,areaType,areaUnit
+OQ_exposure,buildings,OpenQuake Exposure Model,NEXIS v9.0 HAZUS,per_area,AUD,aggregated,SQM
