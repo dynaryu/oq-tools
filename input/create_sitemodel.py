@@ -17,6 +17,7 @@ exposureTxt2NRML creates an exposure input file format (NRML)
 taking an exposure portfolio in a fixed txt format.
 """
 
+import os
 import sys
 import math
 import argparse
@@ -48,7 +49,7 @@ NO_VALUE = ''
 def create_z1pt0_z2pt5_dic():
 
     _dic = {}
-    for value in [115, 180, 270, 412, 560, 760]:
+    for value in [115, 180, 270, 412, 560, 760, 1100]:
 
         z1pt0, z2pt5 = est_z1pt0_z2pt5_given_v30(value)
         _dic[value] = {'z1pt0': z1pt0, 'z2pt5': z2pt5}
@@ -169,18 +170,7 @@ def cmd_parser():
         nargs=1,
         metavar='input file',
         dest='input_file',
-        help='Specify the input file (i.e. site_model.txt)')
-
-    parser.add_argument('-o', '--output-file',
-        nargs=1,
-        metavar='output file',
-        dest='output_file',
-        default=['exposure_portfolio.xml'],
-        help='Specify the output file (i.e. site_model.xml)')
-
-    parser.add_argument('-v', '--version',
-        action='version',
-        version="%(prog)s 0.0.1")
+        help='Specify the input file (i.e. site_model.csv)')
 
     return parser
 
@@ -197,8 +187,12 @@ def main():
             metadata = reader.metadata
             assets = reader.readassets()
 
+        _path = os.path.abspath(os.path.dirname(args.input_file[0]))
+        _list = os.path.basename(args.input_file[0]).split('.')
+        output_file = os.path.join(_path, '{}.xml'.format(_list[0]))
+
         writer = SiteModelWriter()
-        writer.serialize(args.output_file[0], metadata, assets)
+        writer.serialize(output_file, metadata, assets)
 
 if __name__ == '__main__':
     main()
